@@ -1,0 +1,18 @@
+[INFO 2025-03-13 13:29:30,576] Starting CMYK Retro Lo-Fi Solana Vanity Address Generator
+[INFO 2025-03-13 13:29:32,316] Switched to welcome screen
+[INFO 2025-03-13 13:29:38,565] Welcome menu option selected: settings
+[INFO 2025-03-13 13:29:38,565] Settings screen not yet implemented
+[INFO 2025-03-13 13:29:38,566] Switched to welcome screen
+[INFO 2025-03-13 13:29:40,808] Welcome menu option selected: generate
+[INFO 2025-03-13 13:29:40,808] Switched to generation screen
+[INFO 2025-03-13 13:29:41,605] Welcome menu option selected: devices
+[INFO 2025-03-13 13:29:41,634] Available OpenCL devices:
+[INFO 2025-03-13 13:29:41,634] Platform: Apple
+[INFO 2025-03-13 13:29:41,634]   - Device: Apple M2
+[INFO 2025-03-13 13:29:41,634]     Type: ALL | GPU
+[INFO 2025-03-13 13:29:41,634]     Compute Units: 10
+[INFO 2025-03-13 13:29:41,634]     Memory: 5461.34 MB
+[INFO 2025-03-13 13:29:41,634] 
+[INFO 2025-03-13 13:29:41,634] Switched to welcome screen
+[INFO 2025-03-13 13:29:42,658] Welcome menu option selected: exit
+[INFO 2025-03-13 13:29:46,766] Application exiting

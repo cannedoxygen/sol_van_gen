@@ -115,14 +115,21 @@ class WelcomeScreen:
         # Import here to avoid circular imports
         from ui.components.retro_button import RetroButton
         
+        # FIXED: Adjust button positioning to be more centered on the screen
+        # and not touch the bottom of the viewport
         button_width = 300
         button_height = 50
-        button_y = self.height // 2 + 40
         button_spacing = 20
+        
+        # Calculate the total height of all buttons and spacing
+        total_buttons_height = (button_height * 4) + (button_spacing * 3)
+        
+        # Center the buttons vertically, starting a bit below the center
+        button_y_start = (self.height - total_buttons_height) // 2 + 40
 
         self.generate_button = RetroButton(
             (self.width - button_width) // 2,
-            button_y,
+            button_y_start,
             button_width,
             button_height,
             "Generate Address",
@@ -132,7 +139,7 @@ class WelcomeScreen:
 
         self.device_button = RetroButton(
             (self.width - button_width) // 2,
-            button_y + button_height + button_spacing,
+            button_y_start + button_height + button_spacing,
             button_width,
             button_height,
             "Select Device",
@@ -142,7 +149,7 @@ class WelcomeScreen:
 
         self.settings_button = RetroButton(
             (self.width - button_width) // 2,
-            button_y + (button_height + button_spacing) * 2,
+            button_y_start + (button_height + button_spacing) * 2,
             button_width,
             button_height,
             "Settings",
@@ -152,7 +159,7 @@ class WelcomeScreen:
 
         self.exit_button = RetroButton(
             (self.width - button_width) // 2,
-            button_y + (button_height + button_spacing) * 3,
+            button_y_start + (button_height + button_spacing) * 3,
             button_width,
             button_height,
             "Exit",
@@ -204,11 +211,27 @@ class WelcomeScreen:
         Returns:
             bool: True if event was handled
         """
-        if self.intro_complete:
-            self.generate_button.handle_event(event)
-            self.device_button.handle_event(event)
-            self.settings_button.handle_event(event)
-            self.exit_button.handle_event(event)
+        # Skip events if intro animation is still playing
+        if not self.intro_complete:
+            # Allow spacebar or mouse click to skip intro
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                self.intro_complete = True
+                return True
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                self.intro_complete = True
+                return True
+            return False
+            
+        # Handle button events and return True if an event was handled
+        if self.generate_button.handle_event(event):
+            return True
+        if self.device_button.handle_event(event):
+            return True
+        if self.settings_button.handle_event(event):
+            return True
+        if self.exit_button.handle_event(event):
+            return True
+            
         return False
     
     def set_exit(self):
@@ -224,10 +247,14 @@ class WelcomeScreen:
         """
         clock = pygame.time.Clock()
         
+        # Make intro animation complete immediately for faster testing
+        # Comment this out for normal behavior
+        # self.intro_complete = True
+        
         while not self.exit_screen:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    self.exit_screen = True
+                    return "exit"
                 else:
                     self.handle_event(event)
             

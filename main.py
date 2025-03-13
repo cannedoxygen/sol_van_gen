@@ -10,12 +10,7 @@ import logging
 import pygame
 import time
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
-
-from ui.main_window import MainWindow
-from utils.ascii_art import display_ascii_art, CMYKColors
-
+# Configure logging
 def setup_logging():
     """Configure application logging"""
     log_format = "[%(levelname)s %(asctime)s] %(message)s"
@@ -50,12 +45,16 @@ def check_dependencies():
 
 def main():
     """Main application entry point"""
-    # Display ASCII art banner
-    display_ascii_art()
-    
     # Setup logging
     setup_logging()
     logging.info("Starting CMYK Retro Lo-Fi Solana Vanity Address Generator")
+    
+    # Display ASCII art banner
+    try:
+        from utils.ascii_art import display_ascii_art
+        display_ascii_art()
+    except ImportError:
+        pass
     
     # Check dependencies
     if not check_dependencies():
@@ -69,10 +68,12 @@ def main():
         pygame.display.set_caption("CMYK Solana Vanity Generator")
         
         # Set up clipboard for copy/paste in input fields
-        pygame.scrap.init()
+        if hasattr(pygame, 'scrap'):
+            pygame.scrap.init()
         
-        # Create main window
-        main_window = MainWindow()
+        # Import and create main window
+        from ui.main_window import MainWindow
+        main_window = MainWindow(width=800, height=600)
         
         # Run the application
         exit_code = main_window.run()
@@ -83,8 +84,8 @@ def main():
         return exit_code
     except Exception as e:
         logging.exception("Unhandled exception in main loop")
-        print(f"{CMYKColors.BRIGHT_MAGENTA}An error occurred: {e}{CMYKColors.RESET}")
-        print(f"{CMYKColors.BRIGHT_CYAN}Check vanity_generator.log for details{CMYKColors.RESET}")
+        print(f"An error occurred: {e}")
+        print(f"Check vanity_generator.log for details")
         return 1
     finally:
         logging.info("Application exiting")

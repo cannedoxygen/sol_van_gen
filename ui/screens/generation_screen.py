@@ -6,6 +6,7 @@ Handles the address generation process and UI
 import os
 import pygame
 import logging
+import threading
 from typing import Callable, Dict, Any
 
 from ui.components.retro_input import RetroInput
@@ -47,6 +48,9 @@ class GenerationScreen:
         # Generation state
         self.generating = False
         self.generation_progress = 0.0
+        self.generation_result = None
+        self.generation_error = None
+        self.generation_thread = None
         
         # Create UI components
         self.create_ui_components()
@@ -98,12 +102,13 @@ class GenerationScreen:
         )
         
         # Buttons
-        button_width = 200
+        button_width = 180
         button_height = 50
         button_y = 100 + (input_height + vertical_spacing) * 4 + 20
         
         self.generate_button = RetroButton(
-            input_x, button_y, 
+            (self.width - button_width * 2 - 20) // 2,
+            button_y, 
             button_width, button_height, 
             "Generate", 
             self.start_generation, 
@@ -111,7 +116,8 @@ class GenerationScreen:
         )
         
         self.back_button = RetroButton(
-            input_x + button_width + 20, button_y, 
+            (self.width - button_width * 2 - 20) // 2 + button_width + 20,
+            button_y, 
             button_width, button_height, 
             "Back", 
             self.on_back, 
@@ -141,12 +147,33 @@ class GenerationScreen:
         self.suffix_input.draw(self.screen)
         self.count_slider.draw(self.screen)
         self.iteration_slider.draw(self.screen)
+        
+        # If generation is in progress, draw status message and progress bar
+        if self.generating:
+            status_font = pygame.font.SysFont('monospace', 16)
+            status_text = "Generating addresses... Please wait."
+            status = status_font.render(status_text, True, (0, 255, 255))
+            status_rect = status.get_rect(center=(self.width // 2, self.generate_button.y - 20))
+            self.screen.blit(status, status_rect)
+            self.progress_bar.draw(self.screen)
+            
+            # Disable generate button during generation
+            self.generate_button.set_disabled(True)
+        else:
+            # Enable generate button when not generating
+            self.generate_button.set_disabled(False)
+            
+        # Draw buttons
         self.generate_button.draw(self.screen)
         self.back_button.draw(self.screen)
         
-        # Draw progress bar if generating
-        if self.generating:
-            self.progress_bar.draw(self.screen)
+        # If there's an error, display it
+        if self.generation_error:
+            error_font = pygame.font.SysFont('monospace', 14)
+            error_text = f"Error: {self.generation_error}"
+            error = error_font.render(error_text, True, (255, 50, 50))
+            error_rect = error.get_rect(center=(self.width // 2, self.height - 50))
+            self.screen.blit(error, error_rect)
     
     def update(self, delta_time: float):
         """
@@ -157,6 +184,15 @@ class GenerationScreen:
         """
         if self.generating:
             self.progress_bar.update(delta_time)
+            
+            # Check if generation thread is still alive
+            if self.generation_thread and not self.generation_thread.is_alive():
+                if self.generation_result:
+                    # Generation completed successfully
+                    self.generating = False
+                    self.on_complete(self.generation_result)
+                    self.generation_result = None
+                    self.generation_thread = None
     
     def handle_event(self, event: pygame.event.Event) -> bool:
         """
@@ -168,23 +204,49 @@ class GenerationScreen:
         Returns:
             bool: True if event was handled
         """
+        # Skip input handling while generating
         if self.generating:
-            return False
+            # Still allow back button to cancel generation
+            return self.back_button.handle_event(event)
+        
+        # Handle custom events for generation progress and completion
+        if event.type == pygame.USEREVENT:
+            if hasattr(event, 'dict') and 'type' in event.dict:
+                if event.dict['type'] == 'generation_progress':
+                    # Update progress bar
+                    progress = event.dict.get('progress', 0)
+                    self.progress_bar.set_progress(progress)
+                    return True
+                
+                elif event.dict['type'] == 'generation_complete':
+                    # Store the result and let update() handle it
+                    self.generation_result = event.dict.get('result')
+                    return True
+                
+                elif event.dict['type'] == 'generation_error':
+                    # Store the error message
+                    self.generation_error = event.dict.get('error')
+                    self.generating = False
+                    return True
         
         # Handle input events
-        self.prefix_input.handle_event(event)
-        self.suffix_input.handle_event(event)
-        self.count_slider.handle_event(event)
-        self.iteration_slider.handle_event(event)
+        handled = False
+        handled |= self.prefix_input.handle_event(event)
+        handled |= self.suffix_input.handle_event(event)
+        handled |= self.count_slider.handle_event(event)
+        handled |= self.iteration_slider.handle_event(event)
         
         # Handle button events
-        self.generate_button.handle_event(event)
-        self.back_button.handle_event(event)
+        handled |= self.generate_button.handle_event(event)
+        handled |= self.back_button.handle_event(event)
         
-        return True
+        return handled
     
     def start_generation(self):
         """Initiate the vanity address generation process"""
+        # Clear any previous errors
+        self.generation_error = None
+        
         # Validate inputs
         prefix = self.prefix_input.get_text().strip()
         suffix = self.suffix_input.get_text().strip()
@@ -192,7 +254,8 @@ class GenerationScreen:
         iteration_bits = self.iteration_slider.get_value()
         
         if not prefix and not suffix:
-            logging.error("Please provide at least a prefix or suffix")
+            self.generation_error = "Please provide at least a prefix or suffix"
+            logging.error(self.generation_error)
             return
         
         # Update configuration
@@ -210,143 +273,9 @@ class GenerationScreen:
         self.progress_bar.set_progress(0)
         
         # Run generation in a separate thread to keep UI responsive
-        import threading
-        generation_thread = threading.Thread(
+        self.generation_thread = threading.Thread(
             target=self.run_generation, 
-            args=(prefix, suffix, count, output_dir, iteration_bits)
+            args=(prefix, suffix, count, output_dir, iteration_bits),
+            daemon=True  # Ensure thread doesn't prevent application exit
         )
-        generation_thread.start()
-    
-    def run_generation(self, prefix, suffix, count, output_dir, iteration_bits):
-        """
-        Actual generation process to run in a separate thread
-        
-        Args:
-            prefix: Address prefix
-            suffix: Address suffix
-            count: Number of addresses to generate
-            output_dir: Directory to save generated addresses
-            iteration_bits: Complexity of generation
-        """
-        try:
-            def progress_callback(progress_data):
-                """
-                Callback to update UI during generation
-                
-                Args:
-                    progress_data: Dictionary with generation progress
-                """
-                if isinstance(progress_data, dict):
-                    # Update progress bar on main thread
-                    pygame.event.post(
-                        pygame.event.Event(
-                            pygame.USEREVENT, 
-                            {'type': 'generation_progress', 
-                             'progress': progress_data.get('progress', 0)}
-                        )
-                    )
-            
-            # Perform generation
-            result = search_vanity_addresses(
-                starts_with=prefix,
-                ends_with=suffix,
-                count=count,
-                output_dir=output_dir,
-                iteration_bits=iteration_bits,
-                callback=progress_callback
-            )
-            
-            # Export results to different formats
-            export_formats = ['json', 'html']
-            for format_type in export_formats:
-                export_addresses_to_file(
-                    result, 
-                    format_type, 
-                    os.path.join(output_dir, f"vanity_addresses.{format_type}")
-                )
-            
-            # Post generation complete event
-            pygame.event.post(
-                pygame.event.Event(
-                    pygame.USEREVENT, 
-                    {'type': 'generation_complete', 
-                     'result': result}
-                )
-            )
-        
-        except Exception as e:
-            # Post error event
-            pygame.event.post(
-                pygame.event.Event(
-                    pygame.USEREVENT, 
-                    {'type': 'generation_error', 
-                     'error': str(e)}
-                )
-            )
-    
-    def run(self) -> str:
-        """
-        Run the generation screen loop
-        
-        Returns:
-            str: Result of screen interaction (e.g., 'back', 'exit')
-        """
-        clock = pygame.time.Clock()
-        
-        while True:
-            # Handle events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return "exit"
-                
-                # Custom generation events
-                if event.type == pygame.USEREVENT:
-                    if event.dict['type'] == 'generation_progress':
-                        # Update progress bar
-                        progress = event.dict['progress']
-                        self.progress_bar.set_progress(progress)
-                    
-                    elif event.dict['type'] == 'generation_complete':
-                        # Stop generation, pass results to callback
-                        self.generating = False
-                        result = event.dict['result']
-                        self.on_complete(result)
-                        return "done"
-                    
-                    elif event.dict['type'] == 'generation_error':
-                        # Handle generation error
-                        error = event.dict['error']
-                        logging.error(f"Generation error: {error}")
-                        self.generating = False
-                
-                # Handle other events
-                if not self.generating:
-                    self.handle_event(event)
-            
-            # Update
-            delta_time = clock.tick(60) / 1000.0  # Convert to seconds
-            self.update(delta_time)
-            
-            # Draw
-            self.draw()
-            
-            # Update display
-            pygame.display.flip()
-
-
-if __name__ == "__main__":
-    # For standalone testing
-    pygame.init()
-    pygame.mixer.init()
-    
-    screen = pygame.display.set_mode((800, 600))
-    pygame.display.set_caption("Solana Vanity Address Generator")
-    
-    def on_back():
-        print("Back button pressed")
-    
-    def on_complete(results):
-        print("Generation complete with results:", results)
-    
-    generation_screen = GenerationScreen(screen, on_back, on_complete)
-    generation_screen.run()
+        self.generation_thread.start()

@@ -41,6 +41,10 @@ class MainWindow:
         self.screens = {}
         self.config = ConfigManager()
         
+        # Initialize pygame if not already initialized
+        if not pygame.get_init():
+            pygame.init()
+            
         # Set up the main pygame display
         if hasattr(pygame, 'SCALED'):
             # For high DPI displays (pygame 2.0+)
@@ -54,6 +58,9 @@ class MainWindow:
                 (width, height),
                 pygame.RESIZABLE
             )
+        
+        # Set window title
+        pygame.display.set_caption("CMYK Retro Solana Vanity Generator")
         
         # Set window icon
         self.set_window_icon()
@@ -106,6 +113,8 @@ class MainWindow:
         Args:
             option: Selected menu option
         """
+        logging.info(f"Welcome menu option selected: {option}")
+        
         if option == "generate":
             self.switch_screen(self.SCREEN_GENERATION)
         elif option == "devices":
@@ -122,6 +131,8 @@ class MainWindow:
         Args:
             results: Generation results
         """
+        logging.info(f"Generation complete with {len(results.get('results', []))} results")
+        
         # Initialize results screen with the generated data
         self.screens[self.SCREEN_RESULTS] = ResultsScreen(
             self.screen,
@@ -157,12 +168,18 @@ class MainWindow:
                 logging.error(f"Error getting devices: {devices_info['error']}")
         except Exception as e:
             logging.error(f"Error showing devices: {e}")
+        
+        # After showing devices, go back to welcome screen
+        self.switch_screen(self.SCREEN_WELCOME)
     
     def show_settings(self):
         """Show settings screen"""
         # This would be implemented as a separate screen in a complete app
         # For now, we'll just log that it's not implemented
         logging.info("Settings screen not yet implemented")
+        
+        # After showing settings, go back to welcome screen
+        self.switch_screen(self.SCREEN_WELCOME)
     
     def switch_screen(self, screen_name: str):
         """
@@ -206,6 +223,7 @@ class MainWindow:
                 if self.current_screen:
                     current_screen_obj = self.screens[self.current_screen]
                     
+                    # FIXED: Improved screen result handling
                     if hasattr(current_screen_obj, 'run'):
                         result = current_screen_obj.run()
                         
@@ -214,19 +232,28 @@ class MainWindow:
                             self.switch_screen(self.SCREEN_WELCOME)
                         elif result == "exit":
                             self.running = False
+                        elif result == "done":
+                            # Do nothing, stay on current screen
+                            pass
                 
                 # Cap the frame rate
                 clock.tick(60)
             
             return 0
         except Exception as e:
-            logging.exception("Error in main loop")
+            logging.exception(f"Error in main loop: {e}")
             return 1
 
 # For testing
 if __name__ == "__main__":
     pygame.init()
     pygame.mixer.init()
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s %(asctime)s] %(message)s"
+    )
     
     # Create and run main window
     window = MainWindow()
