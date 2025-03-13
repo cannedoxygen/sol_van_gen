@@ -176,8 +176,7 @@ class WelcomeScreen:
                     self.title_font = pygame.font.Font(pixel_font_path, 36)
                 else:
                     logging.warning(f"Pixel font not found: {pixel_font_path}")
-                    self.font = pygame.font.SysFont("monospace", 24)
-                    self.title_font = pygame.font.SysFont("monospace", 36)
+                    raise FileNotFoundError(f"Pixel font not found: {pixel_font_path}")
             
             except Exception as font_error:
                 logging.error(f"Error loading fonts: {font_error}")
@@ -201,3 +200,159 @@ class WelcomeScreen:
         except Exception as e:
             logging.error(f"Comprehensive asset loading error: {e}")
             raise
+    
+    def setup_intro_animation(self):
+        """Setup intro animation state"""
+        self.intro_text = "Generating Unique Solana Addresses"
+        self.intro_text_index = 0
+        self.intro_text_surface = self.font.render("", True, CMYKColors.WHITE)
+        self.intro_sound_played = False
+    
+    def create_buttons(self):
+        """Create main menu buttons"""
+        button_width = 300
+        button_height = 50
+        button_y = self.height // 2 + 40
+        button_spacing = 20
+
+        self.generate_button = RetroButton(
+            (self.width - button_width) // 2,
+            button_y,
+            button_width,
+            button_height,
+            "Generate Address",
+            lambda: self.on_menu_select("generate"),
+            color_scheme="cyan"
+        )
+
+        self.device_button = RetroButton(
+            (self.width - button_width) // 2,
+            button_y + button_height + button_spacing,
+            button_width,
+            button_height,
+            "Select Device",
+            lambda: self.on_menu_select("devices"),
+            color_scheme="magenta"
+        )
+
+        self.settings_button = RetroButton(
+            (self.width - button_width) // 2,
+            button_y + (button_height + button_spacing) * 2,
+            button_width,
+            button_height,
+            "Settings",
+            lambda: self.on_menu_select("settings"),
+            color_scheme="yellow"
+        )
+
+        self.exit_button = RetroButton(
+            (self.width - button_width) // 2,
+            button_y + (button_height + button_spacing) * 3,
+            button_width,
+            button_height,
+            "Exit",
+            lambda: self.on_menu_select("exit"),
+            color_scheme="white"
+        )
+
+    def draw_intro(self):
+        """Draw the intro animation"""
+        self.intro_text_index += 1
+
+        if self.intro_text_index <= len(self.intro_text):
+            self.intro_text_surface = self.font.render(
+                self.intro_text[:self.intro_text_index],
+                True,
+                CMYKColors.WHITE
+            )
+        else:
+            self.intro_complete = True
+            if self.intro_sound and not self.intro_sound_played:
+                self.intro_sound.play()
+                self.intro_sound_played = True
+
+        intro_text_rect = self.intro_text_surface.get_rect(
+            center=(self.width // 2, self.height // 2)
+        )
+        self.screen.blit(self.intro_text_surface, intro_text_rect)
+
+    def draw(self):
+        """Draw the welcome screen"""
+        self.screen.blit(self.background, (0, 0))
+
+        if not self.intro_complete:
+            self.draw_intro()
+        else:
+            self.screen.blit(self.logo, self.logo_rect)
+            self.generate_button.draw(self.screen)
+            self.device_button.draw(self.screen)
+            self.settings_button.draw(self.screen)
+            self.exit_button.draw(self.screen)
+
+    def handle_event(self, event: pygame.event.Event) -> bool:
+        """
+        Handle pygame events
+        
+        Args:
+            event: Pygame event to process
+            
+        Returns:
+            bool: True if event was handled
+        """
+        if self.intro_complete:
+            self.generate_button.handle_event(event)
+            self.device_button.handle_event(event)
+            self.settings_button.handle_event(event)
+            self.exit_button.handle_event(event)
+        return False
+    
+    def set_exit(self):
+        """Set the screen to exit on next run"""
+        self.exit_screen = True
+    
+    def run(self) -> str:
+        """
+        Run the welcome screen loop
+        
+        Returns:
+            str: Result of screen interaction (e.g., 'generate', 'settings', 'exit')
+        """
+        clock = pygame.time.Clock()
+        
+        while not self.exit_screen:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.exit_screen = True
+                else:
+                    self.handle_event(event)
+            
+            self.draw()
+            pygame.display.flip()
+            
+            if self.intro_complete:
+                clock.tick(60)  # Limit to 60 FPS
+            else:
+                clock.tick(15)  # Slower rate for intro animation
+        
+        if self.exit_screen:
+            return "exit"
+        
+        return ""  # Default empty result
+
+
+if __name__ == "__main__":
+    # For standalone testing
+    pygame.init()
+    pygame.mixer.init()
+    
+    screen = pygame.display.set_mode((800, 600))
+    pygame.display.set_caption("Solana Vanity Address Generator")
+    
+    def on_menu_select(selection):
+        print(f"Menu selection: {selection}")
+    
+    welcome_screen = WelcomeScreen(screen, on_menu_select)
+    result = welcome_screen.run()
+    print(f"Welcome screen result: {result}")
+    
+    pygame.quit()
