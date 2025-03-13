@@ -1,0 +1,5 @@
+pygame>=2.0.0
+pyopencl>=2022.1
+numpy>=1.20.0
+base58>=2.1.0
+PyNaCl>=1.4.0
