@@ -12,10 +12,10 @@ from typing import Dict, Any, Optional
 from utils.config_manager import ConfigManager
 from ui.screens.landing_screen import LandingScreen
 from ui.screens.welcome_screen import WelcomeScreen
-from ui.screens.info_screen import InfoScreen
 from ui.screens.generation_screen import GenerationScreen
 from ui.screens.results_screen import ResultsScreen
 from ui.screens.settings_screen import SettingsScreen
+from ui.screens.info_screen import InfoScreen
 
 class MainWindow:
     """
@@ -25,10 +25,10 @@ class MainWindow:
     # Screen identifiers
     SCREEN_LANDING = "landing"
     SCREEN_WELCOME = "welcome"
-    SCREEN_INFO = "info"
     SCREEN_GENERATION = "generation"
     SCREEN_RESULTS = "results"
     SCREEN_SETTINGS = "settings"
+    SCREEN_INFO = "info"
     SCREEN_DEVICES = "devices"
     
     def __init__(self, width: int = 800, height: int = 600):
@@ -172,9 +172,7 @@ class MainWindow:
         self.switch_screen(self.SCREEN_RESULTS)
     
     def show_devices(self):
-        """Show available OpenCL devices"""
-        # For now, we'll just import and call the function directly
-        # In a more complete implementation, this would be a separate screen
+        """Show available OpenCL devices and display in a more user-friendly way"""
         try:
             from core.vangen import get_available_devices
             devices_info = get_available_devices()
@@ -184,16 +182,41 @@ class MainWindow:
                 if not devices:
                     logging.info("No OpenCL devices found")
                 else:
+                    # Log detailed info to terminal
                     logging.info("Available OpenCL devices:")
+                    
+                    # Keep track of best device for recommendation
+                    best_device = None
+                    best_score = -1
+                    
                     for platform in devices:
                         logging.info(f"Platform: {platform['platform_name']}")
                         for device in platform["devices"]:
-                            logging.info(f"  - Device: {device['device_name']}")
-                            logging.info(f"    Type: {device['device_type']}")
-                            logging.info(f"    Compute Units: {device['compute_units']}")
+                            # Extract device details
+                            device_name = device['device_name']
+                            device_type = device['device_type']
+                            compute_units = device['compute_units']
                             mem_size_mb = device['global_mem_size'] / (1024 * 1024)
+                            
+                            # Log device info
+                            logging.info(f"  - Device: {device_name}")
+                            logging.info(f"    Type: {device_type}")
+                            logging.info(f"    Compute Units: {compute_units}")
                             logging.info(f"    Memory: {mem_size_mb:.2f} MB")
                             logging.info("")
+                            
+                            # Simple scoring to find "best" device
+                            # Prefer GPUs, with more compute units and memory
+                            device_type_score = 10 if "GPU" in device_type else 1
+                            score = device_type_score * (compute_units + (mem_size_mb / 1024))
+                            
+                            if score > best_score:
+                                best_score = score
+                                best_device = device_name
+                    
+                    # If we found a best device, mention it
+                    if best_device:
+                        logging.info(f"Recommended device: {best_device}")
             else:
                 logging.error(f"Error getting devices: {devices_info['error']}")
         except Exception as e:
@@ -214,6 +237,57 @@ class MainWindow:
             logging.info(f"Switched to {screen_name} screen")
         else:
             logging.error(f"Screen {screen_name} not found")
+    
+    def handle_window_resize(self, new_size):
+        """
+        Handle window resize events
+        
+        Args:
+            new_size: New window dimensions (width, height)
+        """
+        # Update window dimensions
+        self.width, self.height = new_size
+        
+        # Reinitialize screens that need resizing
+        if self.SCREEN_WELCOME in self.screens:
+            # Store current screen to restore after reinitialization
+            current_screen = self.current_screen
+            
+            # Reinitialize the welcome screen
+            self.screens[self.SCREEN_WELCOME] = WelcomeScreen(
+                self.screen,
+                self.handle_welcome_menu
+            )
+            
+            # Reinitialize other screens as needed
+            if self.SCREEN_GENERATION in self.screens:
+                self.screens[self.SCREEN_GENERATION] = GenerationScreen(
+                    self.screen,
+                    lambda: self.switch_screen(self.SCREEN_WELCOME),
+                    self.handle_generation_complete
+                )
+                
+            if self.SCREEN_SETTINGS in self.screens:
+                self.screens[self.SCREEN_SETTINGS] = SettingsScreen(
+                    self.screen,
+                    lambda: self.switch_screen(self.SCREEN_WELCOME)
+                )
+                
+            if self.SCREEN_INFO in self.screens:
+                self.screens[self.SCREEN_INFO] = InfoScreen(
+                    self.screen,
+                    lambda: self.switch_screen(self.SCREEN_WELCOME)
+                )
+                
+            if self.SCREEN_RESULTS in self.screens:
+                # If results screen exists, we need to preserve the results data
+                results_data = getattr(self.screens[self.SCREEN_RESULTS], 'results', None)
+                if results_data:
+                    self.screens[self.SCREEN_RESULTS] = ResultsScreen(
+                        self.screen,
+                        results_data,
+                        lambda: self.switch_screen(self.SCREEN_WELCOME)
+                    )
     
     def run(self) -> int:
         """
@@ -251,6 +325,9 @@ class MainWindow:
                             else:
                                 # On welcome screen, ask if user wants to exit
                                 self.screens[self.SCREEN_WELCOME].set_exit()
+                    elif event.type == pygame.VIDEORESIZE:
+                        # Handle window resize events
+                        self.handle_window_resize(event.size)
                     
                     # Pass events to current screen
                     if self.current_screen:
@@ -293,20 +370,34 @@ class MainWindow:
             logging.exception(f"Error in main loop: {e}")
             return 1
 
+
 # For testing
 if __name__ == "__main__":
-    pygame.init()
-    pygame.mixer.init()
-    
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
-        format="[%(levelname)s %(asctime)s] %(message)s"
+        format="[%(levelname)s %(asctime)s] %(message)s",
+        handlers=[
+            logging.FileHandler("vanity_generator.log"),
+            logging.StreamHandler()
+        ]
     )
+    
+    logging.info("Starting CMYK Retro Lo-Fi Solana Vanity Address Generator")
+    
+    # Initialize pygame and mixer
+    pygame.init()
+    
+    try:
+        pygame.mixer.init()
+    except Exception as e:
+        logging.warning(f"Could not initialize sound mixer: {e}")
     
     # Create and run main window
     window = MainWindow()
     exit_code = window.run()
     
+    # Clean up and exit
     pygame.quit()
+    logging.info("Application exiting")
     sys.exit(exit_code)
