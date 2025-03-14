@@ -10,9 +10,11 @@ import pygame
 from typing import Dict, Any, Optional
 
 from utils.config_manager import ConfigManager
+from ui.screens.landing_screen import LandingScreen
 from ui.screens.welcome_screen import WelcomeScreen
 from ui.screens.generation_screen import GenerationScreen
 from ui.screens.results_screen import ResultsScreen
+from ui.screens.settings_screen import SettingsScreen
 
 class MainWindow:
     """
@@ -20,6 +22,7 @@ class MainWindow:
     """
     
     # Screen identifiers
+    SCREEN_LANDING = "landing"
     SCREEN_WELCOME = "welcome"
     SCREEN_GENERATION = "generation"
     SCREEN_RESULTS = "results"
@@ -68,8 +71,8 @@ class MainWindow:
         # Initialize screens
         self.initialize_screens()
         
-        # Start with welcome screen
-        self.switch_screen(self.SCREEN_WELCOME)
+        # Start with landing screen
+        self.switch_screen(self.SCREEN_LANDING)
     
     def set_window_icon(self):
         """Set the application window icon"""
@@ -91,7 +94,13 @@ class MainWindow:
     
     def initialize_screens(self):
         """Initialize all application screens"""
-        # Welcome screen
+        # Landing screen (intro animation)
+        self.screens[self.SCREEN_LANDING] = LandingScreen(
+            self.screen,
+            self.handle_landing_complete
+        )
+        
+        # Welcome screen (main menu)
         self.screens[self.SCREEN_WELCOME] = WelcomeScreen(
             self.screen,
             self.handle_welcome_menu
@@ -104,7 +113,17 @@ class MainWindow:
             self.handle_generation_complete
         )
         
+        # Settings screen
+        self.screens[self.SCREEN_SETTINGS] = SettingsScreen(
+            self.screen,
+            lambda: self.switch_screen(self.SCREEN_WELCOME)
+        )
+        
         # Results screen initialization is deferred until we have results
+    
+    def handle_landing_complete(self):
+        """Handle completion of the landing screen animation"""
+        self.switch_screen(self.SCREEN_WELCOME)
     
     def handle_welcome_menu(self, option: str):
         """
@@ -120,7 +139,7 @@ class MainWindow:
         elif option == "devices":
             self.show_devices()
         elif option == "settings":
-            self.show_settings()
+            self.switch_screen(self.SCREEN_SETTINGS)
         elif option == "exit":
             self.running = False
     
@@ -172,15 +191,6 @@ class MainWindow:
         # After showing devices, go back to welcome screen
         self.switch_screen(self.SCREEN_WELCOME)
     
-    def show_settings(self):
-        """Show settings screen"""
-        # This would be implemented as a separate screen in a complete app
-        # For now, we'll just log that it's not implemented
-        logging.info("Settings screen not yet implemented")
-        
-        # After showing settings, go back to welcome screen
-        self.switch_screen(self.SCREEN_WELCOME)
-    
     def switch_screen(self, screen_name: str):
         """
         Switch to a different screen
@@ -203,9 +213,15 @@ class MainWindow:
         """
         self.running = True
         clock = pygame.time.Clock()
+        last_time = pygame.time.get_ticks()
         
         try:
             while self.running:
+                # Calculate delta time for animations
+                current_time = pygame.time.get_ticks()
+                delta_time = (current_time - last_time) / 1000.0  # Convert to seconds
+                last_time = current_time
+                
                 # Process events
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
@@ -213,28 +229,47 @@ class MainWindow:
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             # Escape key acts as a back button
-                            if self.current_screen != self.SCREEN_WELCOME:
+                            if self.current_screen == self.SCREEN_LANDING:
+                                # Skip intro animation if ESC is pressed
+                                self.switch_screen(self.SCREEN_WELCOME)
+                            elif self.current_screen != self.SCREEN_WELCOME:
                                 self.switch_screen(self.SCREEN_WELCOME)
                             else:
                                 # On welcome screen, ask if user wants to exit
                                 self.screens[self.SCREEN_WELCOME].set_exit()
+                    
+                    # Pass events to current screen
+                    if self.current_screen:
+                        current_screen_obj = self.screens[self.current_screen]
+                        if hasattr(current_screen_obj, 'handle_event'):
+                            current_screen_obj.handle_event(event)
                 
-                # Run current screen
+                # Update current screen
                 if self.current_screen:
                     current_screen_obj = self.screens[self.current_screen]
-                    
-                    # FIXED: Improved screen result handling
+                    if hasattr(current_screen_obj, 'update'):
+                        current_screen_obj.update(delta_time)
+                
+                # Draw current screen
+                if self.current_screen:
+                    current_screen_obj = self.screens[self.current_screen]
+                    if hasattr(current_screen_obj, 'draw'):
+                        current_screen_obj.draw()
+                        pygame.display.flip()
+                
+                # Check for screen transitions
+                if self.current_screen:
+                    current_screen_obj = self.screens[self.current_screen]
                     if hasattr(current_screen_obj, 'run'):
                         result = current_screen_obj.run()
                         
                         # Handle screen result if any
-                        if result == "back":
+                        if result == "done" and self.current_screen == self.SCREEN_LANDING:
+                            # Landing screen animation is complete, switch to welcome screen
                             self.switch_screen(self.SCREEN_WELCOME)
                         elif result == "exit":
+                            # Exit the application
                             self.running = False
-                        elif result == "done":
-                            # Do nothing, stay on current screen
-                            pass
                 
                 # Cap the frame rate
                 clock.tick(60)
@@ -243,21 +278,3 @@ class MainWindow:
         except Exception as e:
             logging.exception(f"Error in main loop: {e}")
             return 1
-
-# For testing
-if __name__ == "__main__":
-    pygame.init()
-    pygame.mixer.init()
-    
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="[%(levelname)s %(asctime)s] %(message)s"
-    )
-    
-    # Create and run main window
-    window = MainWindow()
-    exit_code = window.run()
-    
-    pygame.quit()
-    sys.exit(exit_code)

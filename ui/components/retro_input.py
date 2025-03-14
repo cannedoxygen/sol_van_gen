@@ -35,7 +35,7 @@ class RetroInput:
         placeholder: str = "",
         initial_text: str = "",
         color_scheme: str = "cyan",
-        font_size: int = 18,
+        font_size: int = 12,
         max_length: int = 50,
         border_width: int = 2,
         corner_radius: int = 4,

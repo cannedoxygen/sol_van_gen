@@ -90,7 +90,7 @@ class RetroSlider:
         self.set_color_scheme(color_scheme)
         
         # Load font
-        self.font_size = 16
+        self.font_size = 12
         self.font = self.load_font()
         
         # Load sound effects

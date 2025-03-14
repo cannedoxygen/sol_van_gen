@@ -33,7 +33,7 @@ class RetroButton:
         text: str,
         action: Callable = None,
         color_scheme: str = "cyan",
-        font_size: int = 20,
+        font_size: int = 12,
         sound_enabled: bool = True,
         border_width: int = 3,
         corner_radius: int = 5,
