@@ -10,6 +10,7 @@ import pygame
 from typing import Dict, Any, Optional
 
 from utils.config_manager import ConfigManager
+from ui.screens.landing_screen import LandingScreen
 from ui.screens.welcome_screen import WelcomeScreen
 from ui.screens.generation_screen import GenerationScreen
 from ui.screens.results_screen import ResultsScreen
@@ -21,6 +22,7 @@ class MainWindow:
     """
     
     # Screen identifiers
+    SCREEN_LANDING = "landing"
     SCREEN_WELCOME = "welcome"
     SCREEN_GENERATION = "generation"
     SCREEN_RESULTS = "results"
@@ -69,8 +71,8 @@ class MainWindow:
         # Initialize screens
         self.initialize_screens()
         
-        # Start with welcome screen
-        self.switch_screen(self.SCREEN_WELCOME)
+        # Start with landing screen
+        self.switch_screen(self.SCREEN_LANDING)
     
     def set_window_icon(self):
         """Set the application window icon"""
@@ -92,6 +94,12 @@ class MainWindow:
     
     def initialize_screens(self):
         """Initialize all application screens"""
+        # Landing screen (intro animation)
+        self.screens[self.SCREEN_LANDING] = LandingScreen(
+            self.screen,
+            self.handle_landing_complete
+        )
+        
         # Welcome screen
         self.screens[self.SCREEN_WELCOME] = WelcomeScreen(
             self.screen,
@@ -112,6 +120,11 @@ class MainWindow:
         )
         
         # Results screen initialization is deferred until we have results
+    
+    def handle_landing_complete(self):
+        """Handle completion of the landing screen animation"""
+        logging.info("Landing screen animation complete")
+        self.switch_screen(self.SCREEN_WELCOME)
     
     def handle_welcome_menu(self, option: str):
         """
@@ -217,7 +230,10 @@ class MainWindow:
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             # Escape key acts as a back button
-                            if self.current_screen != self.SCREEN_WELCOME:
+                            if self.current_screen == self.SCREEN_LANDING:
+                                # Skip intro animation if ESC is pressed
+                                self.switch_screen(self.SCREEN_WELCOME)
+                            elif self.current_screen != self.SCREEN_WELCOME:
                                 self.switch_screen(self.SCREEN_WELCOME)
                             else:
                                 # On welcome screen, ask if user wants to exit
@@ -241,6 +257,20 @@ class MainWindow:
                     if hasattr(current_screen_obj, 'draw'):
                         current_screen_obj.draw()
                         pygame.display.flip()
+                
+                # Check for screen transitions
+                if self.current_screen:
+                    current_screen_obj = self.screens[self.current_screen]
+                    if hasattr(current_screen_obj, 'run'):
+                        result = current_screen_obj.run()
+                        
+                        # Handle screen result if any
+                        if result == "done" and self.current_screen == self.SCREEN_LANDING:
+                            # Landing screen animation is complete, switch to welcome screen
+                            self.switch_screen(self.SCREEN_WELCOME)
+                        elif result == "exit":
+                            # Exit the application
+                            self.running = False
                 
                 # Cap the frame rate
                 clock.tick(60)

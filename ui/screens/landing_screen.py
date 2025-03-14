@@ -88,14 +88,23 @@ class LandingScreen:
             self.intro_sound = None
     
     def setup_intro_animation(self):
-        """Setup intro animation state"""
-        self.intro_text = "Generating Unique Solana Addresses"
+        """Setup intro animation state with two-line title"""
+        # Split the title into two lines
+        self.intro_text_line1 = "Solana Vanity"
+        self.intro_text_line2 = "Address Generator"
+        
+        # Track current display state
+        self.current_line = 1  # Start with the first line
         self.intro_text_index = 0
-        self.intro_text_surface = self.font.render("", True, (255, 255, 255))
+        
+        # Create empty surfaces for each line
+        self.intro_text_surface1 = self.font.render("", True, (0, 255, 255))  # Cyan
+        self.intro_text_surface2 = self.font.render("", True, (255, 0, 255))  # Magenta
+        
         self.intro_sound_played = False
         self.continue_text_visible = False
         self.start_time = time.time()
-        self.animation_duration = 5.0  # Duration in seconds
+        self.animation_duration = 6.0  # Duration in seconds (slightly longer for two lines)
     
     def create_particles(self, count=10):
         """Create particles for animation effects"""
@@ -132,7 +141,7 @@ class LandingScreen:
             self.create_particles(1)
     
     def draw_intro(self):
-        """Draw the intro animation"""
+        """Draw the intro animation with two-line centered title"""
         # Create a gradient background for intro
         intro_surface = pygame.Surface((self.width, self.height))
         intro_surface.fill((0, 0, 30))  # Dark blue base
@@ -155,49 +164,75 @@ class LandingScreen:
             color = (random.randint(180, 255), random.randint(180, 255), random.randint(180, 255))
             pygame.draw.rect(intro_surface, color, (x, y, size, size))
         
-        # Gradually reveal the text
-        self.intro_text_index += 1
-
-        if self.intro_text_index <= len(self.intro_text):
-            displayed_text = self.intro_text[:self.intro_text_index]
-            if self.intro_text_index < len(self.intro_text):
-                displayed_text += "█"  # Add cursor character
-            
-            self.intro_text_surface = self.font.render(
-                displayed_text,
-                True,
-                (0, 255, 255)  # Cyan color
-            )
-        else:
-            # Keep the full text without cursor after done typing
-            self.intro_text_surface = self.font.render(
-                self.intro_text,
-                True,
-                (0, 255, 255)  # Cyan color
-            )
-            
-            # Add a pulsing "Press any key to continue" message
-            if time.time() - self.start_time >= 2.0:  # Show after 2 seconds of completed text
-                self.continue_text_visible = True
-                pulse = abs(math.sin(self.animation_time * 4)) * 255
-                continue_color = (pulse, pulse, pulse)
-                continue_text = self.small_font.render(
-                    "Press any key to continue",
+        # Gradually reveal the text, line by line
+        if self.current_line == 1:
+            # First line animation
+            if self.intro_text_index < len(self.intro_text_line1):
+                self.intro_text_index += 1
+                displayed_text = self.intro_text_line1[:self.intro_text_index]
+                if self.intro_text_index < len(self.intro_text_line1):
+                    displayed_text += "█"  # Add cursor character
+                
+                self.intro_text_surface1 = self.font.render(
+                    displayed_text,
                     True,
-                    continue_color
+                    (0, 255, 255)  # Cyan color
                 )
-                continue_rect = continue_text.get_rect(
-                    center=(self.width // 2, self.height // 2 + 100)
+            else:
+                # First line complete, keep the full text without cursor
+                self.intro_text_surface1 = self.font.render(
+                    self.intro_text_line1,
+                    True,
+                    (0, 255, 255)  # Cyan color
                 )
-                intro_surface.blit(continue_text, continue_rect)
-            
-            # Play completion sound once
-            if self.intro_sound and not self.intro_sound_played:
-                self.intro_sound.play()
-                self.intro_sound_played = True
+                
+                # Move to second line after a brief pause
+                if time.time() - self.start_time > 1.5:
+                    self.current_line = 2
+                    self.intro_text_index = 0
+        else:
+            # Second line animation
+            if self.intro_text_index < len(self.intro_text_line2):
+                self.intro_text_index += 1
+                displayed_text = self.intro_text_line2[:self.intro_text_index]
+                if self.intro_text_index < len(self.intro_text_line2):
+                    displayed_text += "█"  # Add cursor character
+                
+                self.intro_text_surface2 = self.font.render(
+                    displayed_text,
+                    True,
+                    (255, 0, 255)  # Magenta color for second line
+                )
+            else:
+                # Second line complete, keep the full text without cursor
+                self.intro_text_surface2 = self.font.render(
+                    self.intro_text_line2,
+                    True,
+                    (255, 0, 255)  # Magenta color
+                )
+                
+                # Add a pulsing "Press any key to continue" message
+                if time.time() - self.start_time >= 3.0:  # Show after 3 seconds of completed text
+                    self.continue_text_visible = True
+                    pulse = abs(math.sin(self.animation_time * 4)) * 255
+                    continue_color = (pulse, pulse, pulse)
+                    continue_text = self.small_font.render(
+                        "Press any key to continue",
+                        True,
+                        continue_color
+                    )
+                    continue_rect = continue_text.get_rect(
+                        center=(self.width // 2, self.height // 2 + 100)
+                    )
+                    intro_surface.blit(continue_text, continue_rect)
+                
+                # Play completion sound once
+                if self.intro_sound and not self.intro_sound_played:
+                    self.intro_sound.play()
+                    self.intro_sound_played = True
 
         # Create text "scanning" effect
-        if self.intro_text_index > 5:
+        if self.current_line == 2 and self.intro_text_index > 5:
             scan_y = int(self.animation_time * 200) % self.height
             pygame.draw.line(
                 intro_surface,
@@ -222,11 +257,22 @@ class LandingScreen:
         intro_surface.blit(k_text, (self.width - corner_margin - corner_text_size, 
                                    self.height - corner_margin - corner_text_size))
 
-        # Position and blit the main text
-        intro_text_rect = self.intro_text_surface.get_rect(
-            center=(self.width // 2, self.height // 2)
+        # Position and blit both lines of text with proper spacing
+        line_height = 40  # Space between lines
+        
+        # First line position - above center
+        line1_rect = self.intro_text_surface1.get_rect(
+            center=(self.width // 2, self.height // 2 - line_height // 2)
         )
-        intro_surface.blit(self.intro_text_surface, intro_text_rect)
+        
+        # Second line position - below center
+        line2_rect = self.intro_text_surface2.get_rect(
+            center=(self.width // 2, self.height // 2 + line_height // 2)
+        )
+        
+        # Blit text surfaces
+        intro_surface.blit(self.intro_text_surface1, line1_rect)
+        intro_surface.blit(self.intro_text_surface2, line2_rect)
         
         # Draw particles
         for particle in self.particles:
@@ -249,9 +295,22 @@ class LandingScreen:
         
         # Auto-complete the animation after the set duration
         if not self.animation_complete and time.time() - self.start_time >= self.animation_duration:
-            if self.intro_text_index < len(self.intro_text):
-                # Skip to end of text
-                self.intro_text_index = len(self.intro_text)
+            if self.current_line == 1 or self.intro_text_index < len(self.intro_text_line2):
+                # Skip to end of both lines
+                self.current_line = 2
+                self.intro_text_index = len(self.intro_text_line2)
+                
+                # Update text surfaces to their final state
+                self.intro_text_surface1 = self.font.render(
+                    self.intro_text_line1,
+                    True,
+                    (0, 255, 255)  # Cyan color
+                )
+                self.intro_text_surface2 = self.font.render(
+                    self.intro_text_line2,
+                    True,
+                    (255, 0, 255)  # Magenta color
+                )
             elif not self.continue_text_visible:
                 # Show continue text
                 self.continue_text_visible = True
@@ -267,15 +326,31 @@ class LandingScreen:
             bool: True if event was handled
         """
         # Skip animation with any key/click once text is fully displayed
-        if self.intro_text_index >= len(self.intro_text):
+        all_text_displayed = (self.current_line == 2 and 
+                              self.intro_text_index >= len(self.intro_text_line2))
+        
+        if all_text_displayed:
             if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
                 self.animation_complete = True
                 if self.on_complete:
                     self.on_complete()
                 return True
-        # Skip to the end of text with any key/click
+        # Skip to the end of both lines with any key/click
         elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
-            self.intro_text_index = len(self.intro_text)
+            self.current_line = 2
+            self.intro_text_index = len(self.intro_text_line2)
+            
+            # Update text surfaces to their final state
+            self.intro_text_surface1 = self.font.render(
+                self.intro_text_line1,
+                True,
+                (0, 255, 255)  # Cyan color
+            )
+            self.intro_text_surface2 = self.font.render(
+                self.intro_text_line2,
+                True,
+                (255, 0, 255)  # Magenta color
+            )
             return True
             
         return False
@@ -293,4 +368,4 @@ class LandingScreen:
         """
         if self.animation_complete:
             return "done"
-        return ""
+        return ""  # Default result

@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 from utils.config_manager import ConfigManager
 from ui.screens.landing_screen import LandingScreen
 from ui.screens.welcome_screen import WelcomeScreen
+from ui.screens.info_screen import InfoScreen
 from ui.screens.generation_screen import GenerationScreen
 from ui.screens.results_screen import ResultsScreen
 from ui.screens.settings_screen import SettingsScreen
@@ -24,6 +25,7 @@ class MainWindow:
     # Screen identifiers
     SCREEN_LANDING = "landing"
     SCREEN_WELCOME = "welcome"
+    SCREEN_INFO = "info"
     SCREEN_GENERATION = "generation"
     SCREEN_RESULTS = "results"
     SCREEN_SETTINGS = "settings"
@@ -100,10 +102,16 @@ class MainWindow:
             self.handle_landing_complete
         )
         
-        # Welcome screen (main menu)
+        # Welcome screen
         self.screens[self.SCREEN_WELCOME] = WelcomeScreen(
             self.screen,
             self.handle_welcome_menu
+        )
+        
+        # Info screen (separated from welcome screen)
+        self.screens[self.SCREEN_INFO] = InfoScreen(
+            self.screen,
+            lambda: self.switch_screen(self.SCREEN_WELCOME)
         )
         
         # Generation screen
@@ -123,6 +131,7 @@ class MainWindow:
     
     def handle_landing_complete(self):
         """Handle completion of the landing screen animation"""
+        logging.info("Landing screen animation complete")
         self.switch_screen(self.SCREEN_WELCOME)
     
     def handle_welcome_menu(self, option: str):
@@ -140,6 +149,8 @@ class MainWindow:
             self.show_devices()
         elif option == "settings":
             self.switch_screen(self.SCREEN_SETTINGS)
+        elif option == "info":
+            self.switch_screen(self.SCREEN_INFO)
         elif option == "exit":
             self.running = False
     
@@ -232,6 +243,9 @@ class MainWindow:
                             if self.current_screen == self.SCREEN_LANDING:
                                 # Skip intro animation if ESC is pressed
                                 self.switch_screen(self.SCREEN_WELCOME)
+                            elif self.current_screen == self.SCREEN_INFO:
+                                # Go back to welcome screen from info screen
+                                self.switch_screen(self.SCREEN_WELCOME)
                             elif self.current_screen != self.SCREEN_WELCOME:
                                 self.switch_screen(self.SCREEN_WELCOME)
                             else:
@@ -278,3 +292,21 @@ class MainWindow:
         except Exception as e:
             logging.exception(f"Error in main loop: {e}")
             return 1
+
+# For testing
+if __name__ == "__main__":
+    pygame.init()
+    pygame.mixer.init()
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s %(asctime)s] %(message)s"
+    )
+    
+    # Create and run main window
+    window = MainWindow()
+    exit_code = window.run()
+    
+    pygame.quit()
+    sys.exit(exit_code)
